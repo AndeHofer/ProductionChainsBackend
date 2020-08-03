@@ -11,6 +11,9 @@ import chains.utility.Statistics;
 import chains.worker.Worker;
 import lombok.Getter;
 import lombok.Setter;
+import org.springframework.beans.factory.config.ConfigurableBeanFactory;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
 
 import java.lang.management.GarbageCollectorMXBean;
 import java.lang.management.ManagementFactory;
@@ -21,18 +24,24 @@ import java.util.stream.Collectors;
 
 @Getter
 @Setter
+@Component
+@Scope(scopeName = ConfigurableBeanFactory.SCOPE_PROTOTYPE)
 public class GameTimeline {
 
     private final Set<Worker> workersList;
-    private static int yearsPassed = 0;
-    private final static int durationOfYear = 200;
-    private Statistics statistics;
+    private int yearsPassed = 0;
+    private int durationOfYear = 200;
     private int population = 20;
     private Warehouse warehouse;
     private final ConcurrentHashMap<String, Integer> deathMap = new ConcurrentHashMap<>();
-
+    private final Statistics statistics;
+    private UUID uuid;
+    private Timer timer;
+    private TimerTask task;
 
     public GameTimeline(Warehouse warehouse) {
+        this.uuid = UUID.randomUUID();
+        this.statistics = new Statistics(this, warehouse);
         this.warehouse = warehouse;
         this.workersList = ConcurrentHashMap.newKeySet();
     }
@@ -48,13 +57,15 @@ public class GameTimeline {
         ageLifestock();
         feedLifestock();
         workerMigrates(workersList.size());
-        printGCStats();
+//        printGCStats();
 //        System.gc();
 
         long end = System.nanoTime();
 
         long timeElapsed = end - start;
-        System.out.println("Execution time in milliseconds : " + timeElapsed / 1000000);
+        if (timeElapsed / 1000000 > 200) {
+            System.out.println("Execution time in milliseconds : " + timeElapsed / 1000000);
+        }
     }
 
     public void startPopulation() {
@@ -63,9 +74,11 @@ public class GameTimeline {
             new Worker(this, false);
         }
         setInitialResources();
+        createTimer();
     }
 
     public void setInitialResources() {
+
 
         List<Resource> meat = new ArrayList<>();
         List<Resource> milk = new ArrayList<>();
@@ -146,45 +159,12 @@ public class GameTimeline {
                 + garbageCollectionTime);
     }
 
-
-    public void setStatistics(Statistics statistics) {
-        this.statistics = statistics;
-    }
-
-    public static int getYearsPassed() {
-        return yearsPassed;
-    }
-
-    public static void setYearsPassed(int years) {
-        yearsPassed = years;
-    }
-
-    public static int getDurationOfYear() {
-        return durationOfYear;
-    }
-
-    public int getPopulation() {
-        return population;
-    }
-
-    public void setPopulation(int population) {
-        this.population = population;
-    }
-
-    public Statistics getStatistics() {
-        return statistics;
-    }
-
     public void addWorkerToList(Worker worker) {
         workersList.add(worker);
     }
 
     public void removeWorkerFromList(Worker worker) {
         workersList.remove(worker);
-    }
-
-    public Set<Worker> getWorkersList() {
-        return workersList;
     }
 
     public void workerMigrates(int workerCount) {
@@ -201,17 +181,49 @@ public class GameTimeline {
 
     }
 
-    public Warehouse getWarehouse() {
-        return warehouse;
-    }
-
-    public void setWarehouse(Warehouse warehouse) {
-        this.warehouse = warehouse;
-    }
-
     public void addDeathToMap(String reason) {
         deathMap.merge(reason, 1, Integer::sum);
     }
 
+    void createTimer() {
 
+        GameTimeline gameTimeline = this;
+        task = new TimerTask() {
+            @Override
+            public void run() {
+                gameTimeline.setYearsPassed(gameTimeline.getYearsPassed() + 1);
+                gameTimeline.processNewYear();
+            }
+        };
+
+        timer = new Timer();
+        timer.scheduleAtFixedRate(task, 0, durationOfYear);
+
+    }
+
+    public void pauseTimer() {
+        timer.cancel();
+        this.timer = null;
+    }
+
+    public void resumeTimer() {
+        if (timer == null) {
+
+            GameTimeline gameTimeline = this;
+            task = new TimerTask() {
+                @Override
+                public void run() {
+                    gameTimeline.setYearsPassed(gameTimeline.getYearsPassed() + 1);
+                    gameTimeline.processNewYear();
+                }
+            };
+
+            this.timer = new Timer();
+            this.timer.schedule(task, 0, durationOfYear);
+        }
+    }
+
+    public Statistics getStatistics() {
+        return statistics;
+    }
 }

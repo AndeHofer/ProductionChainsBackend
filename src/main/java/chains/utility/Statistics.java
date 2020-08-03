@@ -5,6 +5,8 @@ import chains.materials.Resource;
 import chains.materials.Warehouse;
 import chains.timeline.GameTimeline;
 import chains.worker.Worker;
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -25,15 +27,15 @@ public class Statistics {
     private TreeMap<String, Long> workMap;
     private final GameTimeline gameTimeline;
     private final Warehouse warehouse;
-    TreeMap<String, Integer> resources;
-    TreeMap<String, Integer> lifestock;
+    private TreeMap<String, Integer> resources;
+    private TreeMap<String, Integer> lifestock;
     private long locallyStoredResources;
     private long locallyStoredLifestock;
     private Map<String, Integer> deathMap;
 
-    public Statistics(GameTimeline gameTimeline) {
+    public Statistics(GameTimeline gameTimeline, Warehouse warehouse) {
         this.gameTimeline = gameTimeline;
-        this.warehouse = this.gameTimeline.getWarehouse();
+        this.warehouse = warehouse;
     }
 
     public void refreshStatistics() {
@@ -44,7 +46,7 @@ public class Statistics {
     public void generateWorkerStatistics() {
 
         workersStatisticsList = new HashSet<>(gameTimeline.getWorkersList());
-        currentYear = GameTimeline.getYearsPassed();
+        currentYear = gameTimeline.getYearsPassed();
         workersCount = workersStatisticsList.size();
         femaleWorkersCount = workersStatisticsList.stream()
                 .filter(Objects::nonNull)
